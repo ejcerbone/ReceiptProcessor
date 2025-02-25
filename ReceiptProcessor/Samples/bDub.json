@@ -1,0 +1,20 @@
+{
+  "retailer": "Buffalo Wild Wings Grill and Bar",
+  "purchaseDate": "2025-02-17",
+  "purchaseTime": "11:07",
+  "items": [
+    {
+      "shortDescription": "6 Wings",
+      "price": "11.00"
+    },
+    {
+      "shortDescription": "6 Wings",
+      "price": "11.00"
+    },
+    {
+      "shortDescription": "3 Tenders",
+      "price": "11.00"
+    }
+  ],
+  "total": "35.19"
+}

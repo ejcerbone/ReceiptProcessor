@@ -1,0 +1,16 @@
+{
+  "retailer": "Kettlman's Bagels & Deli",
+  "purchaseDate": "2025-02-21",
+  "purchaseTime": "07:22",
+  "items": [
+    {
+      "shortDescription": "Bagel + Spread",
+      "price": "3.75"
+    },
+    {
+      "shortDescription": "Bagel + Spread",
+      "price": "3.75"
+    }
+  ],
+  "total": "8.00"
+}
