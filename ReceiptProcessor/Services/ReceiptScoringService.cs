@@ -1,6 +1,8 @@
-﻿using ReceiptProcessor.Models;
+﻿using Microsoft.Extensions.Configuration;
+using ReceiptProcessor.Models;
 using System.Collections.Concurrent;
 using System.Threading.Channels;
+using System.Threading.Tasks;
 
 namespace ReceiptProcessor.Services
 {
@@ -16,6 +18,10 @@ namespace ReceiptProcessor.Services
                 try
                 {
                     await ScoreReceipt(task);
+
+
+                    //Configuration.GetValue<bool>("UseScoreV2:"))
+
                     logger.LogInformation($"Receipt {task.ReceiptId} scored");
 
                     receiptStatus[task.ReceiptId] = ReceiptProcessingStatus.Processed;
@@ -33,48 +39,45 @@ namespace ReceiptProcessor.Services
 
         private async Task<int> ScoreReceipt(ReceiptProcessorTask task)
         {
+            var watch = System.Diagnostics.Stopwatch.StartNew();
+
             int score = 0;
 
             receiptStatus[task.ReceiptId] = ReceiptProcessingStatus.Processing;
 
             var receipt = await _receiptServices.GetReceipt(task.ReceiptId);
 
+            //Optimization to run all the calculations in parallel using Task(async)
+            var tasks = new List<Task<int>>();
+            tasks.Add(Task.Run(() => ScoreAlphanumeric(receipt)));
+            tasks.Add(Task.Run(() => ScoreItemPairs(receipt)));
+            tasks.Add(Task.Run(() => TotalIsEven(receipt)));
+            tasks.Add(Task.Run(() => MultipleOf25(receipt)));
+            tasks.Add(Task.Run(() => ScoreDate(receipt)));
+            tasks.Add(Task.Run(() => ScoreBetween14n16(receipt)));
+            tasks.Add(Task.Run(() => ScoreItems(receipt)));
 
-            //alphanumeric character check.
-            score += receipt.retailer.Count(x => char.IsLetterOrDigit(x));
+            int[] results = await Task.WhenAll(tasks);
+        
+            score = results.Sum();
 
-            //every two items, not worth computing if the item count is less than 2
-            if (receipt.items != null && receipt.items.Count > 1)
-            {
-                score += (int)(Decimal.Floor(receipt.items.Count / 2) * 5);
-            }
+            await _receiptServices.UpdateScore(receipt.receiptId, score);
 
-            //total is a round
-            if (receipt.total % 1 == 0)
-            {
-                score += 50;
-            }
+            //simulate scoring delay, used to test the status endpoint
+            //await Task.Delay(5000);
 
-            //total is a multiple of 0.25, forcing to use decimal instead of double with "m" suffix
-            if (receipt.total % 0.25m == 0)
-            {
-                score += 25;
-            }
+            watch.Stop();
 
-            //purchase date is odd
-            if (receipt.purchaseDate != null && DateTime.Parse(receipt.purchaseDate).Day % 2 != 0)
-            {
-                score += 6;
-            }
+            logger.LogInformation($"Receipt id:{task.ReceiptId} score timing, {watch.ElapsedMilliseconds}ms");
+            
 
-            //between 2:00pm(14) and before 4:00pm(16)
-            var time = DateTime.Parse(receipt.purchaseTime).TimeOfDay;
-            if (receipt.purchaseTime != null && time > new TimeSpan(14, 0, 0) && time < new TimeSpan(16, 0, 0))
-            {
-                score += 10;
-            }
+            return score;
+        }
 
-            //iterate the items and calculate the score
+        private static int ScoreItems(Receipt receipt)
+        {
+            int score = 0;
+
             if (receipt.items != null && receipt.items.Count > 0)
             {
                 foreach (var item in receipt.items)
@@ -86,14 +89,82 @@ namespace ReceiptProcessor.Services
                 }
             }
 
-            await _receiptServices.UpdateScore(receipt.receiptId, score);
+            return score;
+        }
 
-            //simulate scoring delay, used to test the status endpoint
-            //await Task.Delay(5000);
+        private static int ScoreItemPairs(Receipt receipt)
+        {
+
+            int score = 0;
+
+            if (receipt.items != null && receipt.items.Count > 1)
+            {
+                score += (int)(Decimal.Floor(receipt.items.Count / 2) * 5);
+            }
 
             return score;
         }
 
+        private static int ScoreBetween14n16(Receipt receipt)
+        {
 
+            int score = 0;
+
+            var time = DateTime.Parse(receipt.purchaseTime).TimeOfDay;
+            if (receipt.purchaseTime != null && time > new TimeSpan(14, 0, 0) && time < new TimeSpan(16, 0, 0))
+            {
+                score += 10;
+            }
+
+            return score;
+        }
+
+        private static int ScoreAlphanumeric(Receipt receipt)
+        {
+
+            int score = 0;
+
+            score += receipt.retailer.Count(x => char.IsLetterOrDigit(x));
+            return score;
+        }
+
+        private static int TotalIsEven(Receipt receipt)
+        {
+
+            int score = 0;
+
+            if (receipt.total % 1 == 0)
+            {
+                score += 50;
+            }
+
+            return score;
+        }
+
+        private static int MultipleOf25(Receipt receipt)
+        {
+
+            int score = 0;
+
+            if (receipt.total % 0.25m == 0)
+            {
+                score += 25;
+            }
+
+            return score;
+        }
+
+        private static int ScoreDate(Receipt receipt)
+        {
+
+            int score = 0;
+
+            if (receipt.purchaseDate != null && DateTime.Parse(receipt.purchaseDate).Day % 2 != 0)
+            {
+                score += 6;
+            }
+
+            return score;
+        }
     }
 }
