@@ -19,9 +19,6 @@ namespace ReceiptProcessor.Services
                 {
                     await ScoreReceipt(task);
 
-
-                    //Configuration.GetValue<bool>("UseScoreV2:"))
-
                     logger.LogInformation($"Receipt {task.ReceiptId} scored");
 
                     receiptStatus[task.ReceiptId] = ReceiptProcessingStatus.Processed;
